@@ -4,9 +4,10 @@
 # =============================================================================
 # Usage:
 #   chmod +x run.sh
-#   ./run.sh                    # Full run with all features
-#   ./run.sh --quick-test       # Quick test (10k samples)
-#   ./run.sh --skip-minirocket  # Skip MiniRocket (saves memory)
+#   ./run.sh                              # Full run (looks for ../capture24/prepared_data)
+#   ./run.sh --data-dir /path/to/data     # Specify data directory
+#   ./run.sh --quick-test                 # Quick test (10k samples)
+#   ./run.sh --skip-minirocket            # Skip MiniRocket (saves memory)
 # =============================================================================
 
 set -e  # Exit on error
@@ -23,6 +24,7 @@ PROJECT_ID="GF_LINUX_$(date +%Y%m%d_%H%M%S)"
 QUICK_TEST=false
 SKIP_MINIROCKET=false
 INSTALL_DEPS=true
+DATA_DIR=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -44,15 +46,24 @@ while [[ $# -gt 0 ]]; do
             PROJECT_ID="$2"
             shift 2
             ;;
+        --data-dir)
+            DATA_DIR="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
+            echo "  --data-dir PATH    Path to prepared_data directory (containing X.npy, Y.npy)"
             echo "  --quick-test       Run with 10k samples only (for testing)"
             echo "  --skip-minirocket  Skip MiniRocket features (saves ~40GB RAM)"
             echo "  --no-install       Skip dependency installation"
             echo "  --project-id ID    Set project ID for logs"
             echo "  -h, --help         Show this help"
+            echo ""
+            echo "Example:"
+            echo "  ./run.sh --data-dir ../capture24/prepared_data"
+            echo "  ./run.sh --data-dir /home/user/data/capture24/prepared_data --quick-test"
             exit 0
             ;;
         *)
@@ -73,11 +84,36 @@ echo ""
 
 # Get script directory (where this script is located)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-# Get project root (two levels up from experiments/gait_filter)
-PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 
 echo -e "${BLUE}Script directory:${NC} $SCRIPT_DIR"
-echo -e "${BLUE}Project root:${NC} $PROJECT_ROOT"
+
+# Auto-detect data directory if not specified
+if [ -z "$DATA_DIR" ]; then
+    # Try common locations
+    if [ -d "$SCRIPT_DIR/../../capture24/prepared_data" ]; then
+        DATA_DIR="$SCRIPT_DIR/../../capture24/prepared_data"
+    elif [ -d "$SCRIPT_DIR/../prepared_data" ]; then
+        DATA_DIR="$SCRIPT_DIR/../prepared_data"
+    elif [ -d "$SCRIPT_DIR/prepared_data" ]; then
+        DATA_DIR="$SCRIPT_DIR/prepared_data"
+    elif [ -d "./prepared_data" ]; then
+        DATA_DIR="./prepared_data"
+    else
+        echo -e "${RED}Error: Could not find prepared_data directory!${NC}"
+        echo ""
+        echo "Please specify the path using --data-dir:"
+        echo "  ./run.sh --data-dir /path/to/prepared_data"
+        echo ""
+        echo "The directory should contain: X.npy, Y.npy, P.npy"
+        echo ""
+        echo "To get the data, see: https://github.com/OxWearables/capture24"
+        exit 1
+    fi
+fi
+
+# Convert to absolute path
+DATA_DIR="$( cd "$DATA_DIR" && pwd )"
+echo -e "${BLUE}Data directory:${NC} $DATA_DIR"
 echo ""
 
 # Check Python
@@ -109,13 +145,10 @@ if [ "$INSTALL_DEPS" = true ]; then
     # MrSQM (requires FFTW3 on Linux)
     echo -e "  Installing MrSQM..."
     if command -v apt-get &> /dev/null; then
-        # Debian/Ubuntu
         sudo apt-get install -y libfftw3-dev > /dev/null 2>&1 || true
     elif command -v yum &> /dev/null; then
-        # CentOS/RHEL
         sudo yum install -y fftw-devel > /dev/null 2>&1 || true
     elif command -v dnf &> /dev/null; then
-        # Fedora
         sudo dnf install -y fftw-devel > /dev/null 2>&1 || true
     fi
     $PYTHON -m pip install --quiet mrsqm || echo -e "${YELLOW}  Warning: MrSQM install failed, will skip MrSQM classifiers${NC}"
@@ -134,16 +167,13 @@ fi
 # Check data files
 echo ""
 echo -e "${BLUE}[3/5] Checking data files...${NC}"
-DATA_DIR="$PROJECT_ROOT/prepared_data"
-
-if [ ! -d "$DATA_DIR" ]; then
-    echo -e "${RED}Error: Data directory not found: $DATA_DIR${NC}"
-    echo "Please run prepare_data.py first or check the path."
-    exit 1
-fi
 
 if [ ! -f "$DATA_DIR/X.npy" ]; then
     echo -e "${RED}Error: X.npy not found in $DATA_DIR${NC}"
+    echo ""
+    echo "Please download CAPTURE-24 data first:"
+    echo "  git clone https://github.com/OxWearables/capture24.git"
+    echo "  cd capture24 && python prepare_data.py"
     exit 1
 fi
 
@@ -168,10 +198,10 @@ echo ""
 echo -e "${BLUE}[5/5] Running pipeline...${NC}"
 echo -e "${YELLOW}----------------------------------------${NC}"
 
-cd "$PROJECT_ROOT"
+cd "$SCRIPT_DIR"
 
 # Build command
-CMD="$PYTHON experiments/gait_filter/run_pipeline.py --project-id $PROJECT_ID"
+CMD="$PYTHON run_pipeline.py --project-id $PROJECT_ID --prepared-dir $DATA_DIR"
 
 if [ "$QUICK_TEST" = true ]; then
     CMD="$CMD --quick-test"
@@ -200,6 +230,6 @@ echo -e "${GREEN}Pipeline completed!${NC}"
 echo -e "Total time: ${GREEN}${MINUTES}m ${SECONDS}s${NC}"
 echo ""
 echo -e "Output files:"
-echo -e "  - Artifacts: ${BLUE}$PROJECT_ROOT/artifacts/gait_filter/${NC}"
+echo -e "  - Artifacts: ${BLUE}$SCRIPT_DIR/artifacts/gait_filter/${NC}"
 echo -e "  - Logs: ${BLUE}$SCRIPT_DIR/logs/${NC}"
 echo -e "  - Report: ${BLUE}$SCRIPT_DIR/${PROJECT_ID}_final_report.md${NC}"

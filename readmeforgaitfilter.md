@@ -1,14 +1,15 @@
 # CAPTURE-24 Gait Filter Pipeline
 
 Walking recognition from wearable accelerometer data using machine learning.  
-**Features**: HMM vs ESN vs Mamba comparison experiments.
+**Features**: HMM vs ESN vs Mamba comparison experiments with **CUDA GPU acceleration**.
 
 ---
 
 ## 📋 Prerequisites
 
 1. **Python 3.9+** with pip
-2. **CAPTURE-24 prepared data** in `prepared_data/` directory:
+2. **PyTorch 2.0+** with CUDA support (for GPU acceleration)
+3. **CAPTURE-24 prepared data** in `prepared_data/` directory:
    - `X.npy` - Raw accelerometer data (N, 1000, 3)
    - `X_feats.pkl` - Extracted features (N, 32)
    - `Y_Walmsley2020.npy` - Activity labels
@@ -61,6 +62,21 @@ python experiments/gait_filter/run_pipeline.py --project-id GF001
 pip install numpy scipy pandas scikit-learn joblib matplotlib statsmodels xgboost tqdm
 ```
 
+### Required (CUDA Acceleration)
+```bash
+# PyTorch with CUDA 12.1 (recommended)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# Or PyTorch with CUDA 11.8
+pip install torch --index-url https://download.pytorch.org/whl/cu118
+```
+
+### Optional (Mamba SSM)
+```bash
+# Mamba requires Linux + CUDA 11.8+
+pip install mamba-ssm causal-conv1d>=1.1.0
+```
+
 ### Optional (Advanced Features)
 ```bash
 # MiniRocket features (requires ~40GB RAM for full data)
@@ -69,6 +85,40 @@ pip install sktime
 # SAX/SFA symbolic features
 pip install pyts
 ```
+
+---
+
+## 🎮 CUDA GPU Acceleration
+
+Both ESN and Mamba models support **CUDA GPU acceleration**:
+
+| Model | Implementation | GPU Support | Speedup |
+|-------|----------------|-------------|---------|
+| HMM | hmmlearn (CPU) | ❌ No | - |
+| ESN | PyTorch | ✅ Yes | ~3-5x |
+| Mamba | mamba-ssm | ✅ Yes | ~5-10x |
+
+### Check CUDA Availability
+
+```python
+import torch
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A'}")
+```
+
+### ESN CUDA Implementation
+
+The ESN (Echo State Network) uses PyTorch for:
+- GPU-accelerated reservoir state computation
+- GPU-based Ridge regression (closed-form solution)
+- Automatic CPU/GPU device selection
+
+### Mamba CUDA Implementation
+
+The Mamba SSM uses:
+- Native CUDA kernels from `mamba-ssm` package
+- Full training loop with AdamW + CosineAnnealingLR
+- Gradient clipping for stable training
 
 ---
 
@@ -167,6 +217,14 @@ experiments/gait_filter/
 ### XGBoost "use_label_encoder" warning
 - Safe to ignore, doesn't affect results
 
+### Error: "CUDA out of memory"
+- **Cause**: GPU memory insufficient for batch size
+- **Fix**: Reduce batch size in training scripts or use CPU fallback
+
+### Error: "mamba_ssm not found"
+- **Cause**: Mamba package not installed (requires Linux + CUDA)
+- **Fix**: `pip install mamba-ssm causal-conv1d>=1.1.0` or use ESN instead
+
 ---
 
 ## 📐 ENMO Calculation
@@ -201,13 +259,23 @@ $$\text{ENMO} = \max\left(\sqrt{x^2 + y^2 + z^2} - 1g, 0\right)$$
 - **ESN** (Echo State Network) - Reservoir computing approach
 - **Mamba** (Selective State Space Model) - Modern SSM architecture
 
+### CUDA Acceleration
+
+| Model | GPU Support | Implementation |
+|-------|-------------|----------------|
+| HMM | ❌ CPU only | hmmlearn |
+| ESN | ✅ **CUDA** | PyTorch (reservoir + Ridge) |
+| Mamba | ✅ **CUDA** | mamba-ssm native kernels |
+
+**Expected Speedup with GPU**: 3-10x faster than CPU
+
 ### Experiment Modes
 
-| Mode | Duration | Experiments |
-|------|----------|-------------|
-| quick | ~20 min | HMM + 2 ESN configs |
-| standard | ~40 min | HMM + ESN + Mamba-Light |
-| full | ~2 hours | All 7 experiment combinations |
+| Mode | Duration (CPU) | Duration (GPU) | Experiments |
+|------|----------------|----------------|-------------|
+| quick | ~20 min | ~8 min | HMM + 2 ESN configs |
+| standard | ~40 min | ~15 min | HMM + ESN + Mamba-Light |
+| full | ~2 hours | ~40 min | All 7 experiment combinations |
 
 ### Command Options
 

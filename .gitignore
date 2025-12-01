@@ -9,10 +9,6 @@ venv/
 .venv/
 
 # Data files (too large for git)
-prepared_data/*.pkl
-prepared_data/*.npy
-*.pkl
-*.npy
 
 # IDE
 .vscode/

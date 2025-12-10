@@ -1,8 +1,8 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Mamba Smoother 训练脚本 - 完整CUDA加速版本
-使用Mamba SSM进行时序平滑，支持GPU加速
+Mamba Smoother Training Script - CUDA Accelerated Version
+Uses Mamba SSM for temporal smoothing with GPU acceleration
 """
 
 import argparse
@@ -11,8 +11,9 @@ from pathlib import Path
 import numpy as np
 import joblib
 from sklearn.metrics import f1_score, classification_report
+from sklearn.preprocessing import LabelEncoder
 
-print("[*] 尝试导入Mamba...")
+print("[*] Importing Mamba...")
 try:
     import torch
     import torch.nn as nn
@@ -20,92 +21,96 @@ try:
     from torch.utils.data import Dataset, DataLoader
     from mamba_ssm import Mamba
     MAMBA_AVAILABLE = True
-    print("  [OK] Mamba-SSM可用")
+    print("  [OK] Mamba-SSM available")
 except ImportError as e:
     MAMBA_AVAILABLE = False
-    print(f"  [WARN] Mamba-SSM不可用: {e}")
-    print("  [WARN] 将跳过Mamba训练,仅使用ESN")
+    print(f"  [WARN] Mamba-SSM not available: {e}")
+    print("  [WARN] Will skip Mamba training")
 
 
 def get_device():
-    """获取最佳可用设备"""
+    """Get the best available device"""
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print(f"  [OK] 使用GPU: {torch.cuda.get_device_name(0)}")
+        print(f"  [OK] Using GPU: {torch.cuda.get_device_name(0)}")
         print(f"       VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     else:
         device = torch.device("cpu")
-        print("  [WARN] CUDA不可用,使用CPU")
+        print("  [WARN] CUDA not available, using CPU")
     return device
 
 
 class SequenceDataset(Dataset):
-    """按participant分组的序列数据集"""
-    
-    def __init__(self, inputs, targets, groups):
+    """Sequence dataset grouped by participant"""
+    def __init__(self, inputs, targets, groups, label_encoder=None):
         self.sequences = []
         self.targets_list = []
-        
+        self.label_encoder = label_encoder
+
         unique_groups = np.unique(groups)
         for g in unique_groups:
             mask = groups == g
             self.sequences.append(torch.FloatTensor(inputs[mask]))
-            self.targets_list.append(torch.LongTensor(targets[mask]))
-    
+            # Handle string labels by encoding them
+            if label_encoder is not None:
+                encoded_targets = label_encoder.transform(targets[mask])
+            else:
+                encoded_targets = targets[mask].astype(np.int64)
+            self.targets_list.append(torch.LongTensor(encoded_targets))
+
     def __len__(self):
         return len(self.sequences)
-    
+
     def __getitem__(self, idx):
         return self.sequences[idx], self.targets_list[idx]
 
 
 def collate_sequences(batch):
-    """自定义collate函数 - 处理变长序列"""
+    """Custom collate function for variable length sequences"""
     sequences, targets = zip(*batch)
-    # 直接返回列表，不进行padding（逐序列处理）
     return sequences, targets
 
 
 if MAMBA_AVAILABLE:
     class MambaSmoother(nn.Module):
-        """Mamba Smoother for temporal smoothing - GPU加速版"""
-        
+        """Mamba Smoother for temporal smoothing - GPU accelerated"""
+
         def __init__(self, n_classes=4, d_model=64, n_layers=2, d_state=16, d_conv=4,
                      expand=2, dropout=0.1, aux_dim=0):
             super().__init__()
             self.n_classes = n_classes
             self.d_model = d_model
-            
+
             input_dim = n_classes + aux_dim
             self.input_proj = nn.Linear(input_dim, d_model)
-            
+
             self.mamba_layers = nn.ModuleList([
                 Mamba(d_model=d_model, d_state=d_state, d_conv=d_conv, expand=expand)
                 for _ in range(n_layers)
             ])
-            
+
             self.norms = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(n_layers)])
             self.output_proj = nn.Linear(d_model, n_classes)
             self.dropout = nn.Dropout(dropout)
-        
+
         def forward(self, x):
-            # x: (batch, seq_len, input_dim) 或 (seq_len, input_dim)
+            # x: (batch, seq_len, input_dim) or (seq_len, input_dim)
             if x.dim() == 2:
-                x = x.unsqueeze(0)  # 添加batch维度
-            
+                x = x.unsqueeze(0)  # Add batch dimension
+
             x = self.input_proj(x)
-            
+
             for mamba, norm in zip(self.mamba_layers, self.norms):
                 x_out = mamba(x)
                 x = norm(x + self.dropout(x_out))
-            
+
             logits = self.output_proj(x)
             return logits.squeeze(0) if logits.size(0) == 1 else logits
 
 
 class MambaSmootherWrapper:
-    """Mamba Smoother的sklearn风格包装器"""
-    
+    """sklearn-style wrapper for Mamba Smoother"""
+
     def __init__(self, n_classes=4, d_model=64, n_layers=2, epochs=50, lr=1e-3,
                  batch_size=8, aux_dim=0, device=None):
         self.n_classes = n_classes
@@ -116,82 +121,90 @@ class MambaSmootherWrapper:
         self.batch_size = batch_size
         self.aux_dim = aux_dim
         self.device = device or get_device()
+        self.label_encoder = None
         self.model = None
-    
+
     def fit(self, y_pred_proba, y_true, groups, aux_features=None):
-        """训练Mamba smoother"""
-        print(f"\n[*] 训练Mamba Smoother (CUDA: {self.device.type == 'cuda'})")
-        
-        # 准备输入
+        """Train Mamba smoother"""
+        print(f"\n[*] Training Mamba Smoother (CUDA: {self.device.type == 'cuda'})")
+
+        # Prepare inputs
         if aux_features is not None:
             inputs = np.hstack([y_pred_proba, aux_features])
             self.aux_dim = aux_features.shape[1]
         else:
             inputs = y_pred_proba
+
+        # Handle string labels with LabelEncoder
+        if y_true.dtype.kind in ['U', 'S', 'O']:  # Unicode, byte string, or object
+            print("  [INFO] Detected string labels, using LabelEncoder")
+            self.label_encoder = LabelEncoder()
+            self.label_encoder.fit(y_true)
+            print(f"  [INFO] Classes: {self.label_encoder.classes_}")
         
-        # 创建数据集
-        dataset = SequenceDataset(inputs, y_true, groups)
-        
-        # 初始化模型
+        # Create dataset
+        dataset = SequenceDataset(inputs, y_true, groups, self.label_encoder)
+
+        # Initialize model
         input_dim = inputs.shape[1]
         self.model = MambaSmoother(
             n_classes=self.n_classes,
             d_model=self.d_model,
             n_layers=self.n_layers,
-            aux_dim=0,  # 已经在input_dim中了
+            aux_dim=0,
         ).to(self.device)
-        
-        # 修正input_proj的输入维度
+
+        # Fix input_proj dimension
         self.model.input_proj = nn.Linear(input_dim, self.d_model).to(self.device)
-        
+
         optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs)
         criterion = nn.CrossEntropyLoss()
-        
-        # 训练循环
+
+        # Training loop
         self.model.train()
         for epoch in range(self.epochs):
             total_loss = 0
             n_samples = 0
-            
-            # 随机打乱序列顺序
+
+            # Random shuffle sequence order
             indices = np.random.permutation(len(dataset))
-            
+
             for idx in indices:
                 seq, targets = dataset[idx]
                 seq = seq.to(self.device)
                 targets = targets.to(self.device)
-                
+
                 optimizer.zero_grad()
                 logits = self.model(seq)
                 loss = criterion(logits, targets)
                 loss.backward()
-                
-                # 梯度裁剪
+
+                # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 optimizer.step()
-                
+
                 total_loss += loss.item() * len(targets)
                 n_samples += len(targets)
-            
+
             scheduler.step()
-            
+
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 avg_loss = total_loss / n_samples
                 print(f"    Epoch {epoch+1}/{self.epochs}, Loss: {avg_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}")
-        
-        print("  [OK] 训练完成")
-    
+
+        print("  [OK] Training complete")
+
     def predict(self, y_pred_proba, groups, aux_features=None):
-        """预测"""
+        """Predict with trained model"""
         if aux_features is not None:
             inputs = np.hstack([y_pred_proba, aux_features])
         else:
             inputs = y_pred_proba
-        
+
         self.model.eval()
         all_preds = []
-        
+
         unique_groups = np.unique(groups)
         with torch.no_grad():
             for g in unique_groups:
@@ -200,21 +213,24 @@ class MambaSmootherWrapper:
                 logits = self.model(seq)
                 preds = logits.argmax(dim=-1).cpu().numpy()
                 all_preds.append((mask, preds))
-        
-        # 重组预测结果
+
+        # Reconstruct predictions
         y_pred = np.zeros(len(groups), dtype=np.int64)
         for mask, preds in all_preds:
             y_pred[mask] = preds
-        
+
+        # Convert back to original labels if using LabelEncoder
+        if self.label_encoder is not None:
+            y_pred = self.label_encoder.inverse_transform(y_pred)
+
         return y_pred
 
 
 def compute_auxiliary_features(X_raw, mode='enmo'):
-    """计算辅助特征"""
+    """Compute auxiliary features"""
     if mode == 'none':
         return None
     elif mode == 'enmo':
-        # 简单ENMO统计
         enmo = np.sqrt((X_raw**2).sum(axis=-1)).mean(axis=-1, keepdims=True)
         return enmo
     else:  # full
@@ -228,71 +244,71 @@ def compute_auxiliary_features(X_raw, mode='enmo'):
 
 def main():
     if not MAMBA_AVAILABLE:
-        print("\n[!] Mamba-SSM不可用,无法训练Mamba模型")
-        print("[!] 请安装: pip install mamba-ssm causal-conv1d>=1.1.0")
+        print("\n[!] Mamba-SSM not available")
+        print("[!] Please install: pip install mamba-ssm causal-conv1d>=1.1.0")
         sys.exit(1)
-    
-    parser = argparse.ArgumentParser(description='训练Mamba Smoother (CUDA加速)')
-    parser.add_argument('--exp_id', type=str, required=True, help='实验ID')
-    parser.add_argument('--d_model', type=int, default=64, help='隐藏维度')
-    parser.add_argument('--n_layers', type=int, default=2, help='层数')
+
+    parser = argparse.ArgumentParser(description='Train Mamba Smoother (CUDA accelerated)')
+    parser.add_argument('--exp_id', type=str, required=True, help='Experiment ID')
+    parser.add_argument('--d_model', type=int, default=64, help='Hidden dimension')
+    parser.add_argument('--n_layers', type=int, default=2, help='Number of layers')
     parser.add_argument('--aux_features', type=str, default='enmo',
-                       choices=['none', 'enmo', 'full'], help='辅助特征')
-    parser.add_argument('--epochs', type=int, default=50, help='训练轮数')
-    parser.add_argument('--lr', type=float, default=1e-3, help='学习率')
-    parser.add_argument('--batch_size', type=int, default=8, help='批大小')
+                       choices=['none', 'enmo', 'full'], help='Auxiliary features')
+    parser.add_argument('--epochs', type=int, default=50, help='Training epochs')
+    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
     parser.add_argument('--data_dir', type=str, default='./prepared_data')
     parser.add_argument('--output_dir', type=str, default='./models')
-    
+
     args = parser.parse_args()
-    
+
     print(f"\n{'='*70}")
-    print(f"  训练Mamba Smoother: {args.exp_id} (CUDA加速)")
+    print(f"  Training Mamba Smoother: {args.exp_id} (CUDA accelerated)")
     print(f"{'='*70}\n")
-    
+
     device = get_device()
-    
-    # 加载数据
+
+    # Load data
     data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
-    
-    print("[1/4] 加载数据...")
+
+    print("[1/4] Loading data...")
     split_info = joblib.load(data_dir / 'train_test_split.pkl')
     train_mask = split_info['train_mask']
     test_mask = split_info['test_mask']
-    
+
     y_train_proba = np.load(data_dir / 'y_train_proba_rf.npy')
     y_test_proba = np.load(data_dir / 'y_test_proba_rf.npy')
-    
+
     Y = np.load(data_dir / 'Y_Walmsley2020.npy')
     P = np.load(data_dir / 'P.npy')
-    
+
     y_train = Y[train_mask]
     y_test = Y[test_mask]
     P_train = P[train_mask]
     P_test = P[test_mask]
-    
-    print(f"  训练集: {y_train_proba.shape}")
-    print(f"  测试集: {y_test_proba.shape}")
-    
-    # 辅助特征
+
+    print(f"  Training set: {y_train_proba.shape}")
+    print(f"  Test set: {y_test_proba.shape}")
+
+    # Auxiliary features
     aux_train = None
     aux_test = None
     if args.aux_features != 'none':
-        print(f"\n[2/4] 计算辅助特征 ({args.aux_features})...")
+        print(f"\n[2/4] Computing auxiliary features ({args.aux_features})...")
         try:
             X_raw = np.load(data_dir / 'X.npy', mmap_mode='r')
             aux_train = compute_auxiliary_features(X_raw[train_mask], args.aux_features)
             aux_test = compute_auxiliary_features(X_raw[test_mask], args.aux_features)
-            print(f"  辅助特征维度: {aux_train.shape[1]}")
+            print(f"  Auxiliary feature dim: {aux_train.shape[1]}")
         except FileNotFoundError:
-            print("  [WARN] X.npy不存在,跳过辅助特征")
+            print("  [WARN] X.npy not found, skipping auxiliary features")
     else:
-        print("\n[2/4] 跳过辅助特征...")
-    
-    # 训练
-    print(f"\n[3/4] 训练Mamba Smoother...")
+        print("\n[2/4] Skipping auxiliary features...")
+
+    # Training
+    print(f"\n[3/4] Training Mamba Smoother...")
     mamba = MambaSmootherWrapper(
         n_classes=4,
         d_model=args.d_model,
@@ -301,30 +317,30 @@ def main():
         lr=args.lr,
         device=device,
     )
-    
+
     mamba.fit(y_train_proba, y_train, P_train, aux_train)
-    
-    # 评估
-    print("\n[4/4] 评估模型...")
+
+    # Evaluation
+    print("\n[4/4] Evaluating model...")
     y_pred = mamba.predict(y_test_proba, P_test, aux_test)
-    
+
     f1_macro = f1_score(y_test, y_pred, average='macro')
     f1_per_class = f1_score(y_test, y_pred, average=None)
-    
+
     print("\n" + "="*70)
-    print(f"  {args.exp_id} 测试集结果")
+    print(f"  {args.exp_id} Test Results")
     print("="*70)
     print(classification_report(y_test, y_pred))
     print(f"\nMacro F1: {f1_macro:.4f}")
     print(f"Per-class F1: {f1_per_class}")
-    
-    # 保存模型
+
+    # Save model
     model_path = output_dir / f'mamba_{args.exp_id}.pkl'
     joblib.dump(mamba, model_path)
-    print(f"\n[OK] 模型已保存: {model_path}")
-    
+    print(f"\n[OK] Model saved: {model_path}")
+
     print(f"\n{'='*70}")
-    print(f"  [OK] 训练完成! Macro F1 = {f1_macro:.4f}")
+    print(f"  [OK] Training complete! Macro F1 = {f1_macro:.4f}")
     print(f"{'='*70}\n")
 
 

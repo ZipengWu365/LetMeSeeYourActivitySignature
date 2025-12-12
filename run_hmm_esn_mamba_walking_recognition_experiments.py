@@ -91,7 +91,8 @@ def run_command(cmd, description, critical=True):
         return True
     else:
         print(f"    [FAIL] 失败 (returncode: {result.returncode})")
-        print(f"    错误: {result.stderr}")
+        print(f"    stderr: {result.stderr}")
+        print(f"    stdout: {result.stdout}")
         if critical:
             print("\n[!] 关键步骤失败,终止实验")
             sys.exit(1)
@@ -379,3 +380,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+

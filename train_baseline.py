@@ -13,7 +13,7 @@ import pandas as pd
 import joblib
 
 # 添加项目根目录到路径
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from classifier import Classifier
@@ -135,3 +135,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

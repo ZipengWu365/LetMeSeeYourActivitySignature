@@ -1,0 +1,287 @@
+Running SLURM prolog script on swarmh1001
+===============================================================================
+Job started on Sun Dec 14 17:29:17 GMT 2025
+Job ID          : 481161
+Job name        : gait_full
+WorkDir         : /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature
+Command         : /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/job_h100.slurm
+Partition       : swarm_h100
+Num hosts       : 1
+Num cores       : 16
+Num of tasks    : 1
+Hosts allocated : swarmh1001
+Job Output Follows ...
+===============================================================================
+==================== ENV CHECK ====================
+Host: swarmh1001
+Workdir before cd: /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature
+PYTHON: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python
+lrwxrwxrwx 1 jc15u24 fp 10 Oct 10 17:19 /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python -> python3.10
+--- SLURM resources ---
+SLURM_JOB_ID=481161
+SLURM_CPUS_PER_TASK=16
+CUDA_VISIBLE_DEVICES=0
+--- Python executable / version ---
+sys.executable = /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python
+python version = 3.10.18 (main, Jun  5 2025, 13:14:17) [GCC 11.2.0]
+--- GPU / nvidia-smi (if available) ---
+Sun Dec 14 17:29:17 2025       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.86.15              Driver Version: 570.86.15      CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   35C    P0             72W /  700W |       1MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+--- Torch check ---
+torch = 2.9.0+cu128
+torch cuda = 12.8
+cuda available = True
+device count = 1
+===================================================
+Workdir after cd: /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature
+Listing top-level files:
+total 209
+drwxr-xr-x 8 jc15u24 fp  4096 Dec 14 17:29 .
+drwxr-xr-x 5 jc15u24 fp  4096 Dec 14 16:12 ..
+drwxr-xr-x 9 jc15u24 fp  4096 Dec 14 16:12 .git
+-rw-r--r-- 1 jc15u24 fp    84 Dec 14 16:12 .gitattributes
+-rw-r--r-- 1 jc15u24 fp   174 Dec 14 16:12 .gitignore
+-rw-r--r-- 1 jc15u24 fp 68936 Dec 14 16:12 MAMBA_WALKING_RECOGNITION.md
+-rw-r--r-- 1 jc15u24 fp  3905 Dec 14 16:12 README.md
+drwxr-xr-x 2 jc15u24 fp  4096 Dec 14 16:24 __pycache__
+-rw-r--r-- 1 jc15u24 fp  4091 Dec 14 16:12 classifier.py
+-rw-r--r-- 1 jc15u24 fp  3105 Dec 14 16:12 eval.py
+-rw-r--r-- 1 jc15u24 fp 14252 Dec 14 16:12 evaluate.py
+-rw-r--r-- 1 jc15u24 fp  6925 Dec 14 16:12 evaluate_smoothers.py
+-rw-r--r-- 1 jc15u24 fp  1862 Dec 14 16:12 fix_pickle_compat.py
+-rw-r--r-- 1 jc15u24 fp  5169 Dec 14 16:12 hmm.py
+-rw-r--r-- 1 jc15u24 fp  2450 Dec 14 16:26 job_h100.slurm
+drwxr-xr-x 2 jc15u24 fp  4096 Dec 14 17:29 logs
+drwxr-xr-x 2 jc15u24 fp  4096 Dec 14 16:23 models
+drwxr-xr-x 2 jc15u24 fp  4096 Dec 14 16:12 prepared_data
+-rw-r--r-- 1 jc15u24 fp  9357 Dec 14 16:12 readmeforgaitfilter.md
+-rw-r--r-- 1 jc15u24 fp  1207 Dec 14 16:12 requirements.txt
+drwxr-xr-x 2 jc15u24 fp  4096 Dec 14 16:23 results
+-rw-r--r-- 1 jc15u24 fp  3576 Dec 14 16:12 rf.py
+-rw-r--r-- 1 jc15u24 fp 11946 Dec 14 16:12 run_hmm_esn_mamba_walking_recognition_experiments.py
+-rw-r--r-- 1 jc15u24 fp  4660 Dec 14 16:12 train_baseline.py
+-rw-r--r-- 1 jc15u24 fp 11513 Dec 14 16:12 train_esn_smoother.py
+-rw-r--r-- 1 jc15u24 fp 13286 Dec 14 16:12 train_mamba_smoother.py
+-rw-r--r-- 1 jc15u24 fp  8700 Dec 14 16:12 utils.py
+-rw-r--r-- 1 jc15u24 fp  3967 Dec 14 16:12 xgb.py
+==================== RUN ==========================
+
+======================================================================
+  [*] Walking State Recognition - 自动化实验Pipeline
+======================================================================
+模式: 完整模式
+预计时间: ~2小时
+说明: 运行所有实验组,获得完整对比
+======================================================================
+
+======================================================================
+  Phase 0: 环境检查
+======================================================================
+
+[*] Python版本: 3.10.18
+[*] PyTorch版本: 2.9.0+cu128
+    [OK] GPU可用: NVIDIA H100 80GB HBM3
+    VRAM: 79.2 GB
+    [OK] NumPy
+    [OK] Pandas
+    [OK] Scikit-learn
+    [OK] SciPy
+    [OK] Mamba-SSM (版本: 2.2.6.post3)
+    [OK] 数据文件: X_feats.pkl
+    [OK] 数据文件: Y_Walmsley2020.npy
+    [OK] 数据文件: P.npy
+
+██████████████████████████████████████████████████████████████████████
+  进度: 1/7 - E1_HMM
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: E1_HMM
+──────────────────────────────────────────────────────────────────────
+[*] 训练 E1_HMM...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_baseline.py --model rf_hmm
+    [OK] 成功 (耗时: 371.5秒)
+    输出: 
+======================================================================
+  训练基线模型: rf_hmm
+======================================================================
+
+[1/4] 加载数据...
+  数据形状: X=(934762, 32), Y
+
+██████████████████████████████████████████████████████████████████████
+  进度: 2/7 - E2_ESN_medium
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: E2_ESN_medium
+──────────────────────────────────────────────────────────────────────
+[*] 训练 E2_ESN_medium...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_esn_smoother.py --exp_id E2_ESN_medium --n_reservoir 800 --spectral_radius 0.9 --aux_features enmo
+    [OK] 成功 (耗时: 38.4秒)
+    输出: 
+======================================================================
+  Training ESN Smoother: E2_ESN_medium (CUDA accelerated)
+======================================================================
+
+██████████████████████████████████████████████████████████████████████
+  进度: 3/7 - E3_ESN_large
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: E3_ESN_large
+──────────────────────────────────────────────────────────────────────
+[*] 训练 E3_ESN_large...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_esn_smoother.py --exp_id E3_ESN_large --n_reservoir 1000 --spectral_radius 0.95 --aux_features enmo
+    [OK] 成功 (耗时: 36.1秒)
+    输出: 
+======================================================================
+  Training ESN Smoother: E3_ESN_large (CUDA accelerated)
+======================================================================
+
+
+██████████████████████████████████████████████████████████████████████
+  进度: 4/7 - E4_ESN_full
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: E4_ESN_full
+──────────────────────────────────────────────────────────────────────
+[*] 训练 E4_ESN_full...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_esn_smoother.py --exp_id E4_ESN_full --n_reservoir 800 --spectral_radius 0.9 --aux_features full
+    [OK] 成功 (耗时: 36.9秒)
+    输出: 
+======================================================================
+  Training ESN Smoother: E4_ESN_full (CUDA accelerated)
+======================================================================
+
+
+
+██████████████████████████████████████████████████████████████████████
+  进度: 5/7 - M1_Mamba_light_noaux
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: M1_Mamba_light_noaux
+──────────────────────────────────────────────────────────────────────
+[*] 训练 M1_Mamba_light_noaux...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_mamba_smoother.py --exp_id M1_Mamba_light_noaux --d_model 64 --n_layers 2 --aux_features none --epochs 50
+    [OK] 成功 (耗时: 30.9秒)
+    输出: [*] Importing Mamba...
+  [OK] Mamba-SSM available
+
+======================================================================
+  Training Mamba Smoother: M1_Mamba_light_noaux (CUDA accelerated)
+===========
+
+██████████████████████████████████████████████████████████████████████
+  进度: 6/7 - M2_Mamba_light
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: M2_Mamba_light
+──────────────────────────────────────────────────────────────────────
+[*] 训练 M2_Mamba_light...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_mamba_smoother.py --exp_id M2_Mamba_light --d_model 64 --n_layers 2 --aux_features enmo --epochs 50
+    [OK] 成功 (耗时: 27.8秒)
+    输出: [*] Importing Mamba...
+  [OK] Mamba-SSM available
+
+======================================================================
+  Training Mamba Smoother: M2_Mamba_light (CUDA accelerated)
+=================
+
+██████████████████████████████████████████████████████████████████████
+  进度: 7/7 - M3_Mamba_medium
+██████████████████████████████████████████████████████████████████████
+
+──────────────────────────────────────────────────────────────────────
+运行实验: M3_Mamba_medium
+──────────────────────────────────────────────────────────────────────
+[*] 训练 M3_Mamba_medium...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/train_mamba_smoother.py --exp_id M3_Mamba_medium --d_model 128 --n_layers 3 --aux_features enmo --epochs 50
+    [OK] 成功 (耗时: 33.4秒)
+    输出: [*] Importing Mamba...
+  [OK] Mamba-SSM available
+
+======================================================================
+  Training Mamba Smoother: M3_Mamba_medium (CUDA accelerated)
+================
+
+======================================================================
+  Phase 4: 模型评估
+======================================================================
+
+[*] 评估所有模型并生成对比报告...
+    Command: /iridisfs/home/jc15u24/.conda/envs/easygen-clean/bin/python /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/evaluate_smoothers.py
+    [OK] 成功 (耗时: 93.1秒)
+    输出: [*] Importing Mamba...
+  [OK] Mamba-SSM available
+
+======================================================================
+  Evaluate All Smoother Models
+===============================================
+
+======================================================================
+  生成最终报告
+======================================================================
+
+
+======================================================================
+  [*] 最终结果对比 (按Macro F1排序)
+======================================================================
+            model  macro_f1  balanced_accuracy  f1_light  f1_moderate-vigorous  f1_sedentary  f1_sleep
+RF+HMM [BASELINE]  0.813190           0.813083  0.750920              0.692635      0.851983  0.957222
+  ESN-E4_ESN_full  0.751131           0.726853  0.682721              0.538357      0.834297  0.949147
+ESN-E2_ESN_medium  0.750869           0.726278  0.677626              0.544101      0.832373  0.949375
+ ESN-E3_ESN_large  0.750628           0.726033  0.678040              0.538266      0.835102  0.951103
+
+[BEST] 最优模型: RF+HMM [BASELINE]
+   Macro F1: 0.8132
+   [FAIL] 未超越HMM (差距: 0.0000)
+
+
+======================================================================
+  [OK] 所有实验完成!
+  总耗时: 11.1 分钟
+  结果保存在: /iridisfs/scratch/jc15u24/Code/activity/LetMeSeeYourGaitSignature/results
+======================================================================
+
+==================== DONE =========================
+==============================================================================
+Running epilogue script on swarmh1001.
+
+Submit time  : 2025-12-14T16:19:19
+Start time   : 2025-12-14T17:29:16
+End time     : 2025-12-14T17:40:41
+Elapsed time : 00:11:25 (Timelimit=05:00:00)
+
+Job ID: 481161
+Cluster: iridis_x
+User/Group: jc15u24/fp
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 16
+CPU Utilized: 01:00:16
+CPU Efficiency: 32.99% of 03:02:40 core-walltime
+Job Wall-clock time: 00:11:25
+Memory Utilized: 42.17 GB
+Memory Efficiency: 65.90% of 64.00 GB (64.00 GB/node)

@@ -13,6 +13,10 @@ import pandas as pd
 import joblib
 from sklearn.metrics import f1_score, classification_report, balanced_accuracy_score
 
+# Import model classes for pickle deserialization
+from train_esn_smoother import ESNSmootherWrapper
+from train_mamba_smoother import MambaSmootherWrapper
+
 def load_data():
     """Load test data"""
     data_dir = Path('./prepared_data')
@@ -195,3 +199,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

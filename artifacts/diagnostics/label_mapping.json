@@ -1,0 +1,14 @@
+{
+  "name_to_index": {
+    "sleep": 0,
+    "sedentary": 1,
+    "tasks-light": 2,
+    "walking": 3
+  },
+  "index_to_name": {
+    "0": "sleep",
+    "1": "sedentary",
+    "2": "tasks-light",
+    "3": "walking"
+  }
+}
